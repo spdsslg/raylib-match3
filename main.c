@@ -11,6 +11,7 @@
 
 const char tile_chars[TILE_TYPES] = {'#', '@', '&', '%', '$'};
 char board[BOARD_SIZE][BOARD_SIZE];
+int score = 200;
 
 Vector2 grid_origin;
 Texture2D background;
@@ -74,11 +75,13 @@ int main(void){
                 DrawTextEx(
                     GetFontDefault(),
                     TextFormat("%c", board[i][j]),  //converting single char to string
-                    (Vector2){rect.x+13, rect.y+8},  //position of the character
+                    (Vector2){rect.x+13, rect.y+10},  //position of the character
                     20,   //font size
                     1,    //spacing 
                     WHITE
                 );
+
+                DrawText(TextFormat("SCORE: %d", score), 20, 20, 24, YELLOW);
             }
         }
 
