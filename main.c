@@ -12,6 +12,7 @@
 
 const char tile_chars[TILE_TYPES] = {'#', '@', '&', '%', '$'};
 char board[BOARD_SIZE][BOARD_SIZE];
+char matches[BOARD_SIZE][BOARD_SIZE] = {0};
 int score = 200;
 
 Vector2 grid_origin;
@@ -37,6 +38,40 @@ void init_board(){
     (GetScreenWidth() - grid_width)/2,
     (GetScreenHeight() - grid_height)/2
    };
+}
+
+bool find_matches(){
+    bool found = false;
+    //filling matches board with dummy false values
+    for(int i=0;i<BOARD_SIZE;i++){
+        for(int j = 0;j<BOARD_SIZE;j++){
+            matches[i][j] = false;
+        }
+    }
+
+    //checking matches in rows
+    for(int y=0;y<BOARD_SIZE;y++){
+        for(int x=0;x<BOARD_SIZE - 2;x++){
+            if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
+                matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
+            } 
+            score+=10;
+            found = true;
+        }
+    }
+
+    //checking matches in columns
+    for(int x=0;x<BOARD_SIZE;x++){
+        for(int y=0;y<BOARD_SIZE - 2;y++){
+            if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
+                matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
+            }
+            score+=10;
+            found = true;
+        }
+    }
+
+    return found;
 }
 
 int main(void){
@@ -77,6 +112,8 @@ int main(void){
             (Color){ 182, 198, 217, 200 }
         );
 
+        find_matches();
+
         for(int i=0;i<BOARD_SIZE;i++){  //making rectangles for the grid
             for(int j=0;j<BOARD_SIZE;j++){
                 Rectangle rect = {
@@ -94,7 +131,7 @@ int main(void){
                     (Vector2){rect.x+13, rect.y+10},  //position of the character
                     20,   //font size
                     1,    //spacing 
-                    WHITE
+                    matches[j][i] ? GREEN : WHITE
                 );
 
                 //DrawText(TextFormat("SCORE: %d", score), 20, 20, 24, YELLOW);
