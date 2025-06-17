@@ -8,6 +8,7 @@
 #define BOARD_SIZE 8
 #define TILE_SIZE 42
 #define TILE_TYPES 5
+#define SCORE_FONT_SIZE 32
 
 const char tile_chars[TILE_TYPES] = {'#', '@', '&', '%', '$'};
 char board[BOARD_SIZE][BOARD_SIZE];
@@ -15,6 +16,8 @@ int score = 200;
 
 Vector2 grid_origin;
 Texture2D background;
+Font score_font;
+Vector2 selected_tile = {-1, -1};
 
 char random_tile(){
     return tile_chars[rand()%TILE_TYPES];
@@ -44,10 +47,23 @@ int main(void){
     SetTargetFPS(60); 
     srand(time(NULL));
 
-    background = LoadTexture("assets/Canti.jpeg");
+    background = LoadTexture("assets/Canti.jpeg"); //load a background
+    score_font = LoadFontEx("src/04b03.ttf", SCORE_FONT_SIZE, NULL, 0);  //load a font
 
     init_board();
+    Vector2 mouse = {0, 0 };
+
     while(!WindowShouldClose()){ //if user closes the window it breaks 
+        mouse = GetMousePosition();
+        if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+            int x = (mouse.x - grid_origin.x)/TILE_SIZE;
+            int y = (mouse.y - grid_origin.y)/TILE_SIZE;
+            if((mouse.x - grid_origin.x)>=0 && x<BOARD_SIZE && (mouse.y - grid_origin.y)>=0 && y<BOARD_SIZE){  //consider mouse clicks only if they are inside the grid
+                selected_tile.x = x;
+                selected_tile.y = y;
+            }
+        }
+
         BeginDrawing();
         ClearBackground(BLACK);
 
@@ -81,15 +97,29 @@ int main(void){
                     WHITE
                 );
 
-                DrawText(TextFormat("SCORE: %d", score), 20, 20, 24, YELLOW);
+                //DrawText(TextFormat("SCORE: %d", score), 20, 20, 24, YELLOW);
             }
         }
+        if(selected_tile.x >= 0){
+            DrawRectangleLinesEx((Rectangle){
+                grid_origin.x + TILE_SIZE*selected_tile.x,
+                grid_origin.y + TILE_SIZE*selected_tile.y,
+                TILE_SIZE,
+                TILE_SIZE
+            }, 
+            2, 
+            YELLOW);
+        }
+
+        DrawTextEx(score_font, TextFormat("SCORE: %d", score), (Vector2){20, 20}, SCORE_FONT_SIZE, 1.0f, YELLOW);
 
         EndDrawing();
     }
 
     UnloadTexture(background);
+    UnloadFont(score_font);
 
     CloseWindow();
     return 0;
 }
+
