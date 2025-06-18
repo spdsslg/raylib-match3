@@ -105,6 +105,16 @@ void resolve_matches(){
     }
 }
 
+void swap_tiles(int x1, int y1, int x2, int y2){  //function for swapping tiles
+    char temp = board[y1][x1];
+    board[y1][x1] = board[y2][x2];
+    board[y2][x2] = temp;
+}
+
+bool are_tiles_adjacent(Vector2 a, Vector2 b){
+    return (abs((int)a.x - (int)b.x) + abs((int)a.y - (int)b.y)) == 1;
+}
+
 int main(void){
     const int screen_width = 736;
     const int screen_height = 460;
@@ -134,13 +144,16 @@ int main(void){
             resolve_matches();
         }
 
-        float dt = GetFrameTime();
+        float dt = GetFrameTime(); // getting the time from the previous frame update
+                                   // to properly render the acceleration
+
+        //changing the offset for each tile, that has it
         for(int y=0;y<BOARD_SIZE;y++){
             for(int x=0;x<BOARD_SIZE;x++){
                 if(fall_offset[y][x]>0){
-                    fall_vel[y][x] += GRAVITY*dt;
-                    fall_offset[y][x] -= fall_vel[y][x]*dt;
-                    if(fall_offset[y][x]<0){
+                    fall_vel[y][x] += GRAVITY*dt; //current velocity of the tile
+                    fall_offset[y][x] -= fall_vel[y][x]*dt; //current offset from the final position
+                    if(fall_offset[y][x]<0){  //if it is <0 ,tile is already at the final position => offset=0
                         fall_offset[y][x] = 0;
                     }
                 }
@@ -173,7 +186,7 @@ int main(void){
                 DrawRectangleLinesEx(rect, 1, BLACK); //setting the size and color of borders
 
                 if(board[j][i]!=' '){
-                    DrawTextEx(
+                    DrawTextEx( //drawing text in the cells
                         GetFontDefault(),
                         TextFormat("%c", board[j][i]),  //converting single char to string
                         (Vector2){rect.x+13, rect.y+10 - fall_offset[j][i]},  //position of the character
