@@ -15,19 +15,31 @@ char board[BOARD_SIZE][BOARD_SIZE];
 char matches[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_offset[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_vel[BOARD_SIZE][BOARD_SIZE] = {0};
-int score = 200;
+int score = 0;
 float fall_speed = 7.0f;
 const float GRAVITY = 1000.0f;
+float match_delay_timer = 0.0f;
+const float MATCH_DELAY_DURATION = 0.3f; 
 
 Vector2 grid_origin;
 Texture2D background;
 Font score_font;
 Vector2 selected_tile = {-1, -1};
 
+typedef enum{
+    STATE_IDLE,
+    STATE_ANIMATING,
+    STATE_MATCH_DELAY  
+}TileState;
+
+TileState tile_state;
+
 char random_tile(){
     return tile_chars[rand()%TILE_TYPES];
 }
 
+bool find_matches();
+void resolve_matches();
 void init_board(){
     for(int i=0;i<BOARD_SIZE;i++){
         for(int j=0;j<BOARD_SIZE;j++){
@@ -42,6 +54,13 @@ void init_board(){
     (GetScreenWidth() - grid_width)/2,
     (GetScreenHeight() - grid_height)/2
    };
+
+   if(find_matches()){
+        resolve_matches();
+   }
+   else{
+        tile_state = STATE_IDLE;
+   }
 }
 
 bool find_matches(){
@@ -55,23 +74,37 @@ bool find_matches(){
 
     //checking matches in rows
     for(int y=0;y<BOARD_SIZE;y++){
+        //bool flag_consecutive = false;
         for(int x=0;x<BOARD_SIZE - 2;x++){
             if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
                 matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
-                score+=10;
+                //if(!flag_consecutive){
+                    score+=10;
+                    //flag_consecutive = true;
+                //}
                 found = true;
             } 
+            // else{
+            //     flag_consecutive = false;
+            // }
         }
     }
 
     //checking matches in columns
     for(int x=0;x<BOARD_SIZE;x++){
+        //bool flag_consecutive = false;
         for(int y=0;y<BOARD_SIZE - 2;y++){
             if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
                 matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
-                score+=10;
+                //if(!flag_consecutive){
+                    score+=10;
+                    //flag_consecutive = true;
+                //}
                 found = true;
             }
+            // else{
+            //     flag_consecutive = false;
+            // }
         }
     }
 
@@ -103,13 +136,15 @@ void resolve_matches(){
             write_y--;
         }
     }
+
+    tile_state = STATE_ANIMATING;
 }
 
-void resolve_matches_if_any(){  //just a helper function so that i won't write the contents again
-    if(find_matches()){
-        resolve_matches();
-    }
-}
+// void resolve_matches_if_any(){  //just a helper function so that i won't write the contents again
+//     if(find_matches()){
+//         resolve_matches();
+//     }
+// }
 
 void detect_matches(){  //checks for matches but do not add scores, used to find matches to highlight 
                         //after resolve_matches_if_any to update matches count
@@ -175,7 +210,7 @@ int main(void){
 
     while(!WindowShouldClose()){ //if user closes the window it breaks 
         mouse = GetMousePosition();
-        if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+        if(tile_state == STATE_IDLE && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
             int x = (mouse.x - grid_origin.x)/TILE_SIZE;
             int y = (mouse.y - grid_origin.y)/TILE_SIZE;
             if((mouse.x - grid_origin.x)>=0 && x<BOARD_SIZE && (mouse.y - grid_origin.y)>=0 && y<BOARD_SIZE){  //consider mouse clicks only if they are inside the grid
@@ -188,7 +223,9 @@ int main(void){
                     if(are_tiles_adjacent(selected_tile, current_tile)){
                         swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
                         if(tile_has_match_at(selected_tile.x, selected_tile.y) || tile_has_match_at(current_tile.x, current_tile.y)){
-                            resolve_matches_if_any();
+                            if(find_matches()){
+                                resolve_matches();
+                            }
                         }
                         else{  //if no matches occured, swap back
                             swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
@@ -203,19 +240,41 @@ int main(void){
                                    // to properly render the acceleration
 
         //changing the offset for each tile, that has it
-        for(int y=0;y<BOARD_SIZE;y++){
-            for(int x=0;x<BOARD_SIZE;x++){
-                if(fall_offset[y][x]>0){
-                    fall_vel[y][x] += GRAVITY*dt; //current velocity of the tile
-                    fall_offset[y][x] -= fall_vel[y][x]*dt; //current offset from the final position
-                    if(fall_offset[y][x]<0){  //if it is <0 ,tile is already at the final position => offset=0
-                        fall_offset[y][x] = 0;
+        if(tile_state == STATE_ANIMATING){
+            bool still_animating = false;
+            for(int y=0;y<BOARD_SIZE;y++){
+                for(int x=0;x<BOARD_SIZE;x++){
+                    if(fall_offset[y][x]>0){
+                        fall_vel[y][x] += GRAVITY*dt; //current velocity of the tile
+                        fall_offset[y][x] -= fall_vel[y][x]*dt; //current offset from the final position
+                        if(fall_offset[y][x]<0){  //if it is <0 ,tile is already at the final position => offset=0
+                            fall_offset[y][x] = 0;
+                        }
+                        else{
+                            still_animating = true;
+                        }
                     }
+                }
+            }
+
+            if(!still_animating){
+                tile_state = STATE_MATCH_DELAY;
+                match_delay_timer = MATCH_DELAY_DURATION;
+            }
+        }
+
+        if(tile_state == STATE_MATCH_DELAY){
+            match_delay_timer -= GetFrameTime();
+            if(match_delay_timer<=0.0f){
+                if(find_matches()){
+                    resolve_matches();
+                }
+                else{
+                    tile_state = STATE_IDLE;
                 }
             }
         }
 
-        detect_matches();
 
         BeginDrawing();
         ClearBackground(BLACK);
@@ -230,6 +289,8 @@ int main(void){
             (Color){ 182, 198, 217, 200 }
         );
 
+        DrawRectangle(grid_origin.x, grid_origin.y, TILE_SIZE*BOARD_SIZE, TILE_SIZE*BOARD_SIZE, Fade(DARKGRAY, 0.6));
+
         for(int i=0;i<BOARD_SIZE;i++){  //making rectangles for the grid
             for(int j=0;j<BOARD_SIZE;j++){
                 Rectangle rect = {
@@ -239,7 +300,7 @@ int main(void){
                     TILE_SIZE
                 };
  
-                DrawRectangleLinesEx(rect, 1, BLACK); //setting the size and color of borders
+                DrawRectangleLinesEx(rect, 1, DARKGRAY); //setting the size and color of borders
 
                 if(board[j][i]!=' '){
                     DrawTextEx( //drawing text in the cells
