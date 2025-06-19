@@ -25,6 +25,8 @@ Vector2 grid_origin;
 Texture2D background;
 Font score_font;
 Vector2 selected_tile = {-1, -1};
+Music background_music;
+Sound match_sound;
 
 typedef enum{
     STATE_IDLE,
@@ -72,7 +74,7 @@ bool find_matches(){
         }
     }
 
-    //checking matches in rows
+    //--checking matches in rows
     for(int y=0;y<BOARD_SIZE;y++){
         //bool flag_consecutive = false;
         for(int x=0;x<BOARD_SIZE - 2;x++){
@@ -83,6 +85,7 @@ bool find_matches(){
                     //flag_consecutive = true;
                 //}
                 found = true;
+                PlaySound(match_sound);
             } 
             // else{
             //     flag_consecutive = false;
@@ -90,7 +93,7 @@ bool find_matches(){
         }
     }
 
-    //checking matches in columns
+    // --checking matches in columns
     for(int x=0;x<BOARD_SIZE;x++){
         //bool flag_consecutive = false;
         for(int y=0;y<BOARD_SIZE - 2;y++){
@@ -101,6 +104,7 @@ bool find_matches(){
                     //flag_consecutive = true;
                 //}
                 found = true;
+                PlaySound(match_sound);
             }
             // else{
             //     flag_consecutive = false;
@@ -140,14 +144,9 @@ void resolve_matches(){
     tile_state = STATE_ANIMATING;
 }
 
-// void resolve_matches_if_any(){  //just a helper function so that i won't write the contents again
-//     if(find_matches()){
-//         resolve_matches();
-//     }
-// }
-
 void detect_matches(){  //checks for matches but do not add scores, used to find matches to highlight 
                         //after resolve_matches_if_any to update matches count
+                        //!!THIS FUNCTION IS CURRENTLY NOT USED IN THE GAME LOGIC!!
     for(int y = 0;y<BOARD_SIZE;y++){
         for(int x = 0;x<BOARD_SIZE;x++){
             matches[y][x] = false;
@@ -201,14 +200,22 @@ int main(void){
     InitWindow(screen_width, screen_height, "Raylib 2D ASCII MATCH"); //init the window
     SetTargetFPS(60); 
     srand(time(NULL));
+    InitAudioDevice();
 
     background = LoadTexture("assets/Canti.jpeg"); //load a background
     score_font = LoadFontEx("src/04b03.ttf", SCORE_FONT_SIZE, NULL, 0);  //load a font
+    background_music = LoadMusicStream("assets/bgm_old.mp3");
+    match_sound = LoadSound("assets/match_old.mp3");
+
+   SetMasterVolume(0.3f);
+    PlayMusicStream(background_music);
 
     init_board();
     Vector2 mouse = {0, 0 };
 
     while(!WindowShouldClose()){ //if user closes the window it breaks 
+        UpdateMusicStream(background_music);
+
         mouse = GetMousePosition();
         if(tile_state == STATE_IDLE && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
             int x = (mouse.x - grid_origin.x)/TILE_SIZE;
@@ -334,8 +341,11 @@ int main(void){
         EndDrawing();
     }
 
+    StopMusicStream(background_music);
     UnloadTexture(background);
     UnloadFont(score_font);
+    UnloadMusicStream(background_music);
+    UnloadSound(match_sound);
 
     CloseWindow();
     return 0;
