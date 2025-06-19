@@ -105,13 +105,57 @@ void resolve_matches(){
     }
 }
 
+void resolve_matches_if_any(){  //just a helper function so that i won't write the contents again
+    if(find_matches()){
+        resolve_matches();
+    }
+}
+
+void detect_matches(){  //checks for matches but do not add scores, used to find matches to highlight 
+                        //after resolve_matches_if_any to update matches count
+    for(int y = 0;y<BOARD_SIZE;y++){
+        for(int x = 0;x<BOARD_SIZE;x++){
+            matches[y][x] = false;
+        }
+    }
+
+    for(int y=0;y<BOARD_SIZE;y++){
+        for(int x=0;x<BOARD_SIZE-2;x++){
+            if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
+                matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
+            }
+        }
+    }
+
+    for(int x=0;x<BOARD_SIZE;x++){
+        for(int y=0;y<BOARD_SIZE - 2;y++){
+            if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
+                matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
+            }
+        }
+    }
+}
+
+bool tile_has_match_at(int x,int y){  //cheks for match3 in the consecutive cells to the one that is provided
+                                      //used to prevent swapping tiles that don't form match3
+    int cnt = 1;
+    char curr_tile_val = board[y][x];
+    for(int dx = 1; (x-dx)>=0 && board[y][x-dx]==curr_tile_val;dx++) cnt++;
+    for(int dx = 1; (x+dx)<BOARD_SIZE && board[y][x+dx]==curr_tile_val;dx++) cnt++;
+    if (cnt>=3) return true;
+    cnt=1;
+    for(int dy = 1; (y-dy)>=0 && board[y-dy][x] == curr_tile_val;dy++) cnt++;
+    for(int dy = 1; (y+dy)<BOARD_SIZE && board[y+dy][x] == curr_tile_val;dy++) cnt++;
+    return (cnt>=3);
+}
+
 void swap_tiles(int x1, int y1, int x2, int y2){  //function for swapping tiles
     char temp = board[y1][x1];
     board[y1][x1] = board[y2][x2];
     board[y2][x2] = temp;
 }
 
-bool are_tiles_adjacent(Vector2 a, Vector2 b){
+bool are_tiles_adjacent(Vector2 a, Vector2 b){  //check if the tiles are adjacent
     return (abs((int)a.x - (int)b.x) + abs((int)a.y - (int)b.y)) == 1;
 }
 
@@ -135,13 +179,24 @@ int main(void){
             int x = (mouse.x - grid_origin.x)/TILE_SIZE;
             int y = (mouse.y - grid_origin.y)/TILE_SIZE;
             if((mouse.x - grid_origin.x)>=0 && x<BOARD_SIZE && (mouse.y - grid_origin.y)>=0 && y<BOARD_SIZE){  //consider mouse clicks only if they are inside the grid
-                selected_tile.x = x;
-                selected_tile.y = y;
+                Vector2 current_tile = (Vector2){x,y}; 
+                if(selected_tile.x<0 && selected_tile.y<0){ //if the tile that we clicked on is the first chosen
+                                                            //we just select it
+                    selected_tile = current_tile;
+                }
+                else{                                       //otherwise, we try to swap tiles, as we know that some tile was already chosen
+                    if(are_tiles_adjacent(selected_tile, current_tile)){
+                        swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
+                        if(tile_has_match_at(selected_tile.x, selected_tile.y) || tile_has_match_at(current_tile.x, current_tile.y)){
+                            resolve_matches_if_any();
+                        }
+                        else{  //if no matches occured, swap back
+                            swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
+                        }
+                    }
+                    selected_tile = (Vector2){-1, -1};
+                }
             }
-        }
-
-        if(find_matches()){
-            resolve_matches();
         }
 
         float dt = GetFrameTime(); // getting the time from the previous frame update
@@ -160,6 +215,7 @@ int main(void){
             }
         }
 
+        detect_matches();
 
         BeginDrawing();
         ClearBackground(BLACK);
