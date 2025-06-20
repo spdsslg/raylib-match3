@@ -9,6 +9,7 @@
 #define TILE_SIZE 42
 #define TILE_TYPES 5
 #define SCORE_FONT_SIZE 32
+#define MAX_SCORE_POPUPS 32
 
 const char tile_chars[TILE_TYPES] = {'#', '@', '&', '%', '$'};
 char board[BOARD_SIZE][BOARD_SIZE];
@@ -35,6 +36,16 @@ typedef enum{
 }TileState;
 
 TileState tile_state;
+
+typedef struct{
+    Vector2 position;
+    int amount;
+    float lifetime;
+    float alpha;
+    bool active;
+}ScorePopup;
+
+ScorePopup score_popups[MAX_SCORE_POPUPS] = {0};
 
 char random_tile(){
     return tile_chars[rand()%TILE_TYPES];
@@ -65,6 +76,8 @@ void init_board(){
    }
 }
 
+
+void add_score_popup(int x, int y, int amount, Vector2 grid_origin);
 bool find_matches(){
     bool found = false;
     //filling matches board with dummy false values
@@ -76,41 +89,96 @@ bool find_matches(){
 
     //--checking matches in rows
     for(int y=0;y<BOARD_SIZE;y++){
-        //bool flag_consecutive = false;
-        for(int x=0;x<BOARD_SIZE - 2;x++){
-            if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
-                matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
-                //if(!flag_consecutive){
-                    score+=10;
-                    //flag_consecutive = true;
-                //}
-                found = true;
-                PlaySound(match_sound);
-            } 
-            // else{
-            //     flag_consecutive = false;
-            // }
+        int runLen = 1;
+        int runStart = 0;
+        for(int x=1;x<=BOARD_SIZE;x++){
+            bool endOfRun = (x==BOARD_SIZE) || (board[y][x] != board[y][x-1]); //check if it is not the end of the board and 
+                                                                               // if the previous symbol is the same as the current ome
+            if(!endOfRun){
+                runLen++;
+            }
+            else{
+                if(runLen>=3){
+                    for(int i=runStart;i<runStart+runLen;i++){ //filling matches array with true values for 
+                                                               //the gap between runStart and till runLen+runStart
+                        matches[y][i] = true;
+                    }
+                    int total = 10*(runLen - 2); // calculating total score for the sequence of tiles
+                    score+=total;
+                    found = true;
+                    PlaySound(match_sound);
+            
+                    add_score_popup(runStart+runLen/2, y, total, grid_origin);
+                }
+                runStart = x; //setting new values for the start of new sequence
+                runLen = 1;
+            }
         }
     }
 
     // --checking matches in columns
     for(int x=0;x<BOARD_SIZE;x++){
-        //bool flag_consecutive = false;
-        for(int y=0;y<BOARD_SIZE - 2;y++){
-            if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
-                matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
-                //if(!flag_consecutive){
-                    score+=10;
-                    //flag_consecutive = true;
-                //}
-                found = true;
-                PlaySound(match_sound);
+        int runLen = 1;
+        int runStart = 0;
+        for(int y=1;y<=BOARD_SIZE;y++){
+            bool endOfRun = (y == BOARD_SIZE || (board[y][x] != board[y-1][x]));
+            if(!endOfRun){
+                runLen++;
             }
-            // else{
-            //     flag_consecutive = false;
-            // }
+            else{
+                if(runLen>=3){
+                    for(int i=runStart;i<runStart+runLen;i++){
+                        matches[i][x] = true;
+                    }
+                    int total = 10*(runLen - 2);
+                    score+=total;
+                    found = true;
+                    PlaySound(match_sound);
+
+                    add_score_popup(x, runStart+runLen/2, total, grid_origin);
+                }
+                runLen = 1;
+                runStart = y;
+            }
         }
     }
+
+    // //--checking matches in rows  !! THIS IS THE OL VERSION OF THE FUNCTION !!
+    // for(int y=0;y<BOARD_SIZE;y++){
+    //     for(int x=0;x<BOARD_SIZE - 2;x++){
+    //         if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
+    //             matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
+    //             //if(flag_consecutive){
+    //                 score+=10;
+    //                 //flag_consecutive = true;
+    //             //}
+    //             found = true;
+    //             PlaySound(match_sound);
+
+    //             add_score_popup(x, y, 10, grid_origin);
+    //         } 
+    //     }
+    // }
+
+    // // --checking matches in columns
+    // for(int x=0;x<BOARD_SIZE;x++){
+    //     //bool flag_consecutive = false;
+    //     for(int y=0;y<BOARD_SIZE - 2;y++){
+    //         if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
+    //             matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
+    //             //if(!flag_consecutive){
+    //                 score+=10;
+    //                 //flag_consecutive = true;
+    //             //}
+    //             found = true;
+    //             PlaySound(match_sound);
+    //             add_score_popup(x, y, 10, grid_origin);
+    //         }
+    //         // else{
+    //         //     flag_consecutive = false;
+    //         // }
+    //     }
+    // }
 
     return found;
 }
@@ -191,6 +259,24 @@ void swap_tiles(int x1, int y1, int x2, int y2){  //function for swapping tiles
 
 bool are_tiles_adjacent(Vector2 a, Vector2 b){  //check if the tiles are adjacent
     return (abs((int)a.x - (int)b.x) + abs((int)a.y - (int)b.y)) == 1;
+}
+
+void add_score_popup(int x, int y, int amount, Vector2 grid_origin){  //updating the score array with a new value
+//the logic behind it is that we have an array that can contain up to 32 values
+//so at the same time the maximum number of popups is 32 and in this function we are updating one value of popup
+    for(int i=0;i<MAX_SCORE_POPUPS;i++){
+        if(!score_popups[i].active){
+            score_popups[i].position = (Vector2){
+                grid_origin.x + x * TILE_SIZE + TILE_SIZE/2,
+                grid_origin.y + y * TILE_SIZE + TILE_SIZE/2
+            };
+            score_popups[i].amount = amount;
+            score_popups[i].alpha = 1.0f;
+            score_popups[i].lifetime = 1.0f;
+            score_popups[i].active = true;
+            break;
+        }
+    }
 }
 
 int main(void){
@@ -282,6 +368,18 @@ int main(void){
             }
         }
 
+        //updating score popups
+        for(int i=0;i<MAX_SCORE_POPUPS;i++){
+            if(score_popups[i].active){
+                score_popups[i].lifetime -= GetFrameTime();
+                score_popups[i].position.y -= 30*GetFrameTime();
+                score_popups[i].alpha = score_popups[i].lifetime;
+
+                if(score_popups[i].lifetime <= 0.0f){
+                    score_popups[i].active = false; 
+                }
+            }
+        }
 
         BeginDrawing();
         ClearBackground(BLACK);
@@ -337,6 +435,20 @@ int main(void){
         }
 
         DrawTextEx(score_font, TextFormat("SCORE: %d", score), (Vector2){20, 20}, SCORE_FONT_SIZE, 1.0f, YELLOW);
+
+        for(int i=0;i<MAX_SCORE_POPUPS;i++){
+            if(score_popups[i].active){
+                Color clr = Fade(YELLOW, score_popups[i].alpha);
+                DrawText(TextFormat("+%d", score_popups[i].amount), 
+                        score_popups[i].position.x, 
+                        score_popups[i].position.y, 
+                        20, 
+                        clr);
+            }
+            else{
+                break;
+            }
+        }
 
         EndDrawing();
     }
