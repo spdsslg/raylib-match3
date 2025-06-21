@@ -22,12 +22,17 @@ const float GRAVITY = 800.0f;
 float match_delay_timer = 0.0f;
 const float MATCH_DELAY_DURATION = 0.3f; 
 
+float score_scale = 1.0f;
+float score_scale_velocity = 0.0f;
+bool score_animating = false;
+
 Vector2 grid_origin;
 Texture2D background;
 Font score_font;
 Vector2 selected_tile = {-1, -1};
 Music background_music;
 Sound match_sound;
+Sound kaboom_sound;
 
 typedef enum{
     STATE_IDLE,
@@ -116,6 +121,16 @@ bool find_matches(){
                     score+=total;
                     found = true;
                     PlaySound(match_sound);
+
+                    if(runLen>=4){
+                        score_animating = true;
+                        if(runLen>=5){
+                            score_scale = 2.0;
+                        }
+                        score_scale = 1.5f;
+                        score_scale_velocity = -2.5f;
+                        PlaySound(kaboom_sound);
+                    }
             
                     add_score_popup(runStart+runLen/2, y, total, grid_origin);
                 }
@@ -143,6 +158,16 @@ bool find_matches(){
                     score+=total;
                     found = true;
                     PlaySound(match_sound);
+
+                    if(runLen>=4){
+                        score_animating = true;
+                        if(runLen>=5){
+                            score_scale = 2.0;
+                        }
+                        score_scale = 1.5f;
+                        score_scale_velocity = -2.5f;
+                        PlaySound(kaboom_sound);
+                    }
 
                     add_score_popup(x, runStart+runLen/2, total, grid_origin);
                 }
@@ -308,6 +333,7 @@ int main(void){
     score_font = LoadFontEx("src/04b03.ttf", SCORE_FONT_SIZE, NULL, 0);  //load a font
     background_music = LoadMusicStream("assets/bgm_old.mp3");
     match_sound = LoadSound("assets/match_old.mp3");
+    kaboom_sound = LoadSound("assets/Kaboom_sound_effect.mp3");
 
    SetMasterVolume(0.3f);
     PlayMusicStream(background_music);
@@ -400,6 +426,14 @@ int main(void){
             }
         }
 
+        if(score_animating){
+            score_scale += GetFrameTime()*score_scale_velocity;
+            if(score_scale<=1.0f){
+                score_scale = 1.0f;
+                score_animating = false;
+            }
+        }
+
         BeginDrawing();
         ClearBackground(BLACK);
 
@@ -454,7 +488,7 @@ int main(void){
             YELLOW);
         }
 
-        DrawTextEx(score_font, TextFormat("SCORE: %d", score), (Vector2){20, 20}, SCORE_FONT_SIZE, 1.0f, YELLOW);
+        DrawTextEx(score_font, TextFormat("SCORE: %d", score), (Vector2){20, 20}, SCORE_FONT_SIZE*score_scale, 1.0f, YELLOW);
 
         for(int i=0;i<MAX_SCORE_POPUPS;i++){
             if(score_popups[i].active){
@@ -478,6 +512,7 @@ int main(void){
     UnloadFont(score_font);
     UnloadMusicStream(background_music);
     UnloadSound(match_sound);
+    UnloadSound(kaboom_sound);
 
     CloseWindow();
     return 0;
