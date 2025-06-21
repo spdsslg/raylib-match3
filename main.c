@@ -17,8 +17,8 @@ char matches[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_offset[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_vel[BOARD_SIZE][BOARD_SIZE] = {0};
 int score = 0;
-float fall_speed = 7.0f;
-const float GRAVITY = 1000.0f;
+float INITIAL_VELOCITY = 150.0f;
+const float GRAVITY = 800.0f;
 float match_delay_timer = 0.0f;
 const float MATCH_DELAY_DURATION = 0.3f; 
 
@@ -53,6 +53,9 @@ char random_tile(){
 
 bool find_matches();
 void resolve_matches();
+bool tile_if_any_match();
+void detect_matches();
+void clear_matches();
 void init_board(){
     for(int i=0;i<BOARD_SIZE;i++){
         for(int j=0;j<BOARD_SIZE;j++){
@@ -68,24 +71,30 @@ void init_board(){
     (GetScreenHeight() - grid_height)/2
    };
 
-   if(find_matches()){
-        resolve_matches();
+   if(tile_if_any_match()){
+        clear_matches();
+        detect_matches();
+        tile_state = STATE_MATCH_DELAY;
+        match_delay_timer = MATCH_DELAY_DURATION;
    }
    else{
         tile_state = STATE_IDLE;
    }
 }
 
-
-void add_score_popup(int x, int y, int amount, Vector2 grid_origin);
-bool find_matches(){
-    bool found = false;
+void clear_matches(){
     //filling matches board with dummy false values
     for(int i=0;i<BOARD_SIZE;i++){
         for(int j = 0;j<BOARD_SIZE;j++){
             matches[i][j] = false;
         }
     }
+}
+
+void add_score_popup(int x, int y, int amount, Vector2 grid_origin);
+bool find_matches(){
+    bool found = false;
+    clear_matches();
 
     //--checking matches in rows
     for(int y=0;y<BOARD_SIZE;y++){
@@ -183,6 +192,18 @@ bool find_matches(){
     return found;
 }
 
+bool tile_has_match_at(int x, int y);
+bool tile_if_any_match(){  //just checking if at least one match exists
+    for(int y=0;y<BOARD_SIZE;y++){
+        for(int x=0;x<BOARD_SIZE;x++){
+            if(tile_has_match_at(x,y)){
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void resolve_matches(){
     //checking columns and substituting the values with the ones that are above
     //+ calculating the number of matches in a column
@@ -193,7 +214,7 @@ void resolve_matches(){
                 if(y!=write_y){
                     board[write_y][x] = board[y][x];
                     fall_offset[write_y][x] = (write_y - y)*TILE_SIZE;
-                    fall_vel[write_y][x] = 0.0f;
+                    fall_vel[write_y][x] = INITIAL_VELOCITY;
                     board[y][x] = ' ';
                 }
                 write_y--;
@@ -214,12 +235,7 @@ void resolve_matches(){
 
 void detect_matches(){  //checks for matches but do not add scores, used to find matches to highlight 
                         //after resolve_matches_if_any to update matches count
-                        //!!THIS FUNCTION IS CURRENTLY NOT USED IN THE GAME LOGIC!!
-    for(int y = 0;y<BOARD_SIZE;y++){
-        for(int x = 0;x<BOARD_SIZE;x++){
-            matches[y][x] = false;
-        }
-    }
+    clear_matches();
 
     for(int y=0;y<BOARD_SIZE;y++){
         for(int x=0;x<BOARD_SIZE-2;x++){
@@ -316,9 +332,10 @@ int main(void){
                     if(are_tiles_adjacent(selected_tile, current_tile)){
                         swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
                         if(tile_has_match_at(selected_tile.x, selected_tile.y) || tile_has_match_at(current_tile.x, current_tile.y)){
-                            if(find_matches()){
-                                resolve_matches();
-                            }
+                            detect_matches();
+                            tile_state = STATE_MATCH_DELAY;
+                            match_delay_timer = MATCH_DELAY_DURATION;
+                            
                         }
                         else{  //if no matches occured, swap back
                             swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
@@ -351,6 +368,8 @@ int main(void){
             }
 
             if(!still_animating){
+                clear_matches();
+                detect_matches();
                 tile_state = STATE_MATCH_DELAY;
                 match_delay_timer = MATCH_DELAY_DURATION;
             }
@@ -408,13 +427,14 @@ int main(void){
                 DrawRectangleLinesEx(rect, 1, DARKGRAY); //setting the size and color of borders
 
                 if(board[j][i]!=' '){
+                    bool just_matched = (tile_state == STATE_MATCH_DELAY) && matches[j][i];
                     DrawTextEx( //drawing text in the cells
                         GetFontDefault(),
                         TextFormat("%c", board[j][i]),  //converting single char to string
                         (Vector2){rect.x+13, rect.y+10 - fall_offset[j][i]},  //position of the character
                         20,   //font size
                         1,    //spacing 
-                        matches[j][i] ? GREEN : WHITE
+                        just_matched ? GREEN : WHITE
                     );
                 }
 
