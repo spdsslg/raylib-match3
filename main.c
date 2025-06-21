@@ -4,6 +4,7 @@
 #include<stdbool.h>
 #include<time.h>
 #include<math.h>
+#include<stdio.h>
 
 #define BOARD_SIZE 8
 #define TILE_SIZE 42
@@ -13,7 +14,7 @@
 
 const char tile_chars[TILE_TYPES] = {'#', '@', '&', '%', '$'};
 char board[BOARD_SIZE][BOARD_SIZE];
-char matches[BOARD_SIZE][BOARD_SIZE] = {0};
+int matches[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_offset[BOARD_SIZE][BOARD_SIZE] = {0};
 float fall_vel[BOARD_SIZE][BOARD_SIZE] = {0};
 int score = 0;
@@ -25,6 +26,12 @@ const float MATCH_DELAY_DURATION = 0.3f;
 float score_scale = 1.0f;
 float score_scale_velocity = 0.0f;
 bool score_animating = false;
+
+float timer = 60.0f;
+const float timer_3tiles = 3.0f;
+const float timer_4tiles = 5.0f;
+const float timer_many_tiles = 10.0f;
+bool time_is_up = false;
 
 Vector2 grid_origin;
 Texture2D background;
@@ -91,7 +98,7 @@ void clear_matches(){
     //filling matches board with dummy false values
     for(int i=0;i<BOARD_SIZE;i++){
         for(int j = 0;j<BOARD_SIZE;j++){
-            matches[i][j] = false;
+            matches[i][j] = 0;
         }
     }
 }
@@ -115,7 +122,7 @@ bool find_matches(){
                 if(runLen>=3){
                     for(int i=runStart;i<runStart+runLen;i++){ //filling matches array with true values for 
                                                                //the gap between runStart and till runLen+runStart
-                        matches[y][i] = true;
+                        matches[y][i] = runLen-2;
                     }
                     int total = 10*(runLen - 2); // calculating total score for the sequence of tiles
                     score+=total;
@@ -130,6 +137,17 @@ bool find_matches(){
                         score_scale = 1.5f;
                         score_scale_velocity = -2.5f;
                         PlaySound(kaboom_sound);
+                    }
+
+                    //updating timer
+                    if(runLen>=5){
+                        timer+=timer_many_tiles;
+                    }
+                    else if(runLen == 4){
+                        timer+=timer_4tiles;
+                    }
+                    else{
+                        timer+=timer_3tiles;
                     }
             
                     add_score_popup(runStart+runLen/2, y, total, grid_origin);
@@ -152,11 +170,12 @@ bool find_matches(){
             else{
                 if(runLen>=3){
                     for(int i=runStart;i<runStart+runLen;i++){
-                        matches[i][x] = true;
+                        matches[i][x] = runLen-2;
                     }
                     int total = 10*(runLen - 2);
                     score+=total;
                     found = true;
+                    
                     PlaySound(match_sound);
 
                     if(runLen>=4){
@@ -167,6 +186,17 @@ bool find_matches(){
                         score_scale = 1.5f;
                         score_scale_velocity = -2.5f;
                         PlaySound(kaboom_sound);
+                    }
+
+                    //updating timer
+                    if(runLen == 3){
+                        timer+=timer_3tiles;
+                    }
+                    else if(runLen == 4){
+                        timer+=timer_4tiles;
+                    }
+                    else{
+                        timer+=timer_many_tiles;
                     }
 
                     add_score_popup(x, runStart+runLen/2, total, grid_origin);
@@ -262,18 +292,62 @@ void detect_matches(){  //checks for matches but do not add scores, used to find
                         //after resolve_matches_if_any to update matches count
     clear_matches();
 
-    for(int y=0;y<BOARD_SIZE;y++){
-        for(int x=0;x<BOARD_SIZE-2;x++){
-            if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
-                matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
+    // for(int y=0;y<BOARD_SIZE;y++){
+    //     for(int x=0;x<BOARD_SIZE-2;x++){
+    //         if(board[y][x] == board[y][x+1] && board[y][x] == board[y][x+2]){
+    //             matches[y][x] = matches[y][x+1] = matches[y][x+2] = true;
+    //         }
+    //     }
+    // }
+
+    // for(int x=0;x<BOARD_SIZE;x++){
+    //     for(int y=0;y<BOARD_SIZE - 2;y++){
+    //         if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
+    //             matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
+    //         }
+    //     }
+    // }
+
+     //--checking matches in rows
+     for(int y=0;y<BOARD_SIZE;y++){
+        int runLen = 1;
+        int runStart = 0;
+        for(int x=1;x<=BOARD_SIZE;x++){
+            bool endOfRun = (x==BOARD_SIZE) || (board[y][x] != board[y][x-1]); //check if it is not the end of the board and 
+                                                                               // if the previous symbol is the same as the current ome
+            if(!endOfRun){
+                runLen++;
+            }
+            else{
+                if(runLen>=3){
+                    for(int i=runStart;i<runStart+runLen;i++){ //filling matches array with true values for 
+                                                               //the gap between runStart and till runLen+runStart
+                        matches[y][i] = runLen-2;
+                    }
+                }
+                runStart = x; //setting new values for the start of new sequence
+                runLen = 1;
             }
         }
     }
 
+    // --checking matches in columns
     for(int x=0;x<BOARD_SIZE;x++){
-        for(int y=0;y<BOARD_SIZE - 2;y++){
-            if(board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]){
-                matches[y][x] = matches[y+1][x] = matches[y+2][x] = true;
+        int runLen = 1;
+        int runStart = 0;
+        for(int y=1;y<=BOARD_SIZE;y++){
+            bool endOfRun = (y == BOARD_SIZE || (board[y][x] != board[y-1][x]));
+            if(!endOfRun){
+                runLen++;
+            }
+            else{
+                if(runLen>=3){
+                    for(int i=runStart;i<runStart+runLen;i++){
+                        matches[i][x] = runLen-2;
+                    }
+                }
+                runLen = 1;
+                runStart = y;
             }
         }
     }
@@ -393,6 +467,7 @@ int main(void){
                 }
             }
 
+            //going into delay
             if(!still_animating){
                 clear_matches();
                 detect_matches();
@@ -401,6 +476,7 @@ int main(void){
             }
         }
 
+        //decreasing delay, so hadling its duration
         if(tile_state == STATE_MATCH_DELAY){
             match_delay_timer -= GetFrameTime();
             if(match_delay_timer<=0.0f){
@@ -426,11 +502,20 @@ int main(void){
             }
         }
 
+        //score animation 
         if(score_animating){
             score_scale += GetFrameTime()*score_scale_velocity;
             if(score_scale<=1.0f){
                 score_scale = 1.0f;
                 score_animating = false;
+            }
+        }
+
+        if(!time_is_up){
+            timer-=GetFrameTime();
+            if(timer<=0){
+                time_is_up = true;
+                timer = 0;
             }
         }
 
@@ -461,14 +546,25 @@ int main(void){
                 DrawRectangleLinesEx(rect, 1, DARKGRAY); //setting the size and color of borders
 
                 if(board[j][i]!=' '){
-                    bool just_matched = (tile_state == STATE_MATCH_DELAY) && matches[j][i];
+                    Color dependent_color = WHITE;
+                    if(tile_state == STATE_MATCH_DELAY){
+                        if(matches[j][i] == 1){
+                            dependent_color = GREEN;
+                        }
+                        else if(matches[j][i] == 2){
+                            dependent_color = BLUE;
+                        }
+                        else if (matches[j][i]>=3) {
+                            dependent_color = RED;
+                        }
+                    }
                     DrawTextEx( //drawing text in the cells
                         GetFontDefault(),
                         TextFormat("%c", board[j][i]),  //converting single char to string
                         (Vector2){rect.x+13, rect.y+10 - fall_offset[j][i]},  //position of the character
                         20,   //font size
                         1,    //spacing 
-                        just_matched ? GREEN : WHITE
+                        dependent_color
                     );
                 }
 
@@ -490,6 +586,7 @@ int main(void){
 
         DrawTextEx(score_font, TextFormat("SCORE: %d", score), (Vector2){20, 20}, SCORE_FONT_SIZE*score_scale, 1.0f, YELLOW);
 
+        //drawing popups for scores
         for(int i=0;i<MAX_SCORE_POPUPS;i++){
             if(score_popups[i].active){
                 Color clr = Fade(YELLOW, score_popups[i].alpha);
@@ -503,6 +600,11 @@ int main(void){
                 break;
             }
         }
+
+        int minutes = (int)(timer/60);
+        int seconds = (int)timer%60;
+        int milliseconds = (int)((timer - floorf(timer))*10.0f);
+        DrawText(TextFormat("%02d:%02d:%01d", minutes, seconds, milliseconds), screen_width - 100, 20, 24, YELLOW); 
 
         EndDrawing();
     }
