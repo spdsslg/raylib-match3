@@ -22,15 +22,16 @@ float INITIAL_VELOCITY = 150.0f;
 const float GRAVITY = 800.0f;
 float match_delay_timer = 0.0f;
 const float MATCH_DELAY_DURATION = 0.3f; 
+int total_matches_count = 0;
 
 float score_scale = 1.0f;
 float score_scale_velocity = 0.0f;
 bool score_animating = false;
 
-float timer = 60.0f;
-const float timer_3tiles = 3.0f;
-const float timer_4tiles = 5.0f;
-const float timer_many_tiles = 10.0f;
+float timer = 10.0f;
+const float timer_3tiles = 2.0f;
+const float timer_4tiles = 3.0f;
+const float timer_many_tiles = 6.0f;
 bool time_is_up = false;
 
 Vector2 grid_origin;
@@ -40,11 +41,13 @@ Vector2 selected_tile = {-1, -1};
 Music background_music;
 Sound match_sound;
 Sound kaboom_sound;
+Sound rampage;
 
 typedef enum{
     STATE_IDLE,
     STATE_ANIMATING,
-    STATE_MATCH_DELAY  
+    STATE_MATCH_DELAY,
+    STATE_GAME_OVER
 }TileState;
 
 TileState tile_state;
@@ -127,6 +130,7 @@ bool find_matches(){
                     int total = 10*(runLen - 2); // calculating total score for the sequence of tiles
                     score+=total;
                     found = true;
+                    total_matches_count+=1;
                     PlaySound(match_sound);
 
                     if(runLen>=4){
@@ -175,7 +179,7 @@ bool find_matches(){
                     int total = 10*(runLen - 2);
                     score+=total;
                     found = true;
-                    
+                    total_matches_count+=1;
                     PlaySound(match_sound);
 
                     if(runLen>=4){
@@ -408,6 +412,7 @@ int main(void){
     background_music = LoadMusicStream("assets/bgm_old.mp3");
     match_sound = LoadSound("assets/match_old.mp3");
     kaboom_sound = LoadSound("assets/Kaboom_sound_effect.mp3");
+    rampage = LoadSound("assets/Rampage_sound.mp3");
 
    SetMasterVolume(0.3f);
     PlayMusicStream(background_music);
@@ -482,9 +487,13 @@ int main(void){
             if(match_delay_timer<=0.0f){
                 if(find_matches()){
                     resolve_matches();
+                    if(total_matches_count >= 5){
+                        PlaySound(rampage);
+                    }
                 }
                 else{
                     tile_state = STATE_IDLE;
+                    total_matches_count = 0;
                 }
             }
         }
@@ -516,6 +525,7 @@ int main(void){
             if(timer<=0){
                 time_is_up = true;
                 timer = 0;
+                tile_state = STATE_GAME_OVER;
             }
         }
 
@@ -606,6 +616,11 @@ int main(void){
         int milliseconds = (int)((timer - floorf(timer))*10.0f);
         DrawText(TextFormat("%02d:%02d:%01d", minutes, seconds, milliseconds), screen_width - 100, 20, 24, YELLOW); 
 
+        if(tile_state == STATE_GAME_OVER){
+            DrawText(TextFormat("GAME OVER"), screen_width/2 - 100, screen_height/2 - 100, 48, RED);
+            DrawText(TextFormat("Final score: %d", score), screen_width/2 - 120, screen_height/2, 32, WHITE);
+        }
+
         EndDrawing();
     }
 
@@ -615,6 +630,7 @@ int main(void){
     UnloadMusicStream(background_music);
     UnloadSound(match_sound);
     UnloadSound(kaboom_sound);
+    UnloadSound(rampage);
 
     CloseWindow();
     return 0;
