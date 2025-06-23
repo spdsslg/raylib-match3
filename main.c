@@ -71,6 +71,7 @@ void resolve_matches();
 bool tile_if_any_match();
 void detect_matches();
 void clear_matches();
+void resolve_init_matches();
 void init_board(){
     for(int i=0;i<BOARD_SIZE;i++){
         for(int j=0;j<BOARD_SIZE;j++){
@@ -86,15 +87,13 @@ void init_board(){
     (GetScreenHeight() - grid_height)/2
    };
 
-   if(tile_if_any_match()){
-        clear_matches();
-        detect_matches();
-        tile_state = STATE_MATCH_DELAY;
-        match_delay_timer = MATCH_DELAY_DURATION;
+   clear_matches();
+   while(tile_if_any_match()){
+    detect_matches();
+    resolve_init_matches();
    }
-   else{
-        tile_state = STATE_IDLE;
-   }
+
+   tile_state = STATE_IDLE;
 }
 
 void clear_matches(){
@@ -289,7 +288,29 @@ void resolve_matches(){
         }
     }
 
-    tile_state = STATE_ANIMATING;
+    tile_state = STATE_ANIMATING; //changing state to start animation
+}
+
+void resolve_init_matches(){
+    //checking columns and substituting the values with the ones that are above
+    for(int x=0;x<BOARD_SIZE;x++){ 
+        int write_y = BOARD_SIZE-1;
+        for(int y=BOARD_SIZE-1;y>=0;y--){
+            if(!matches[y][x]){
+                if(y!=write_y){
+                    board[write_y][x] = board[y][x];
+                    board[y][x] = ' ';
+                }
+                write_y--;
+            }
+        }
+
+        //filling the upper tiles with random values
+        while(write_y>=0){
+            board[write_y][x] = random_tile();
+            write_y--;
+        }
+    }
 }
 
 void detect_matches(){  //checks for matches but do not add scores, used to find matches to highlight 
@@ -617,8 +638,18 @@ int main(void){
         DrawText(TextFormat("%02d:%02d:%01d", minutes, seconds, milliseconds), screen_width - 100, 20, 24, YELLOW); 
 
         if(tile_state == STATE_GAME_OVER){
-            DrawText(TextFormat("GAME OVER"), screen_width/2 - 100, screen_height/2 - 100, 48, RED);
-            DrawText(TextFormat("Final score: %d", score), screen_width/2 - 120, screen_height/2, 32, WHITE);
+            int digits_in_score = 0;
+            int temp_score = score;
+            if(temp_score == 0){
+                digits_in_score = 1;
+            }
+            while(temp_score!=0){
+                temp_score/=10;
+                digits_in_score++;
+            }
+            DrawRectangle(0, 0, screen_width, screen_height, Fade(DARKGRAY,0.7));
+            DrawTextEx(score_font, TextFormat("GAME OVER"), (Vector2){screen_width/2 - 149, screen_height/2 - 100}, 55, 1, RED);
+            DrawText(TextFormat("Final score: %d", score), screen_width/2 - 100 - 8*digits_in_score, screen_height/2, 32, WHITE);
         }
 
         EndDrawing();
