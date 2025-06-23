@@ -34,6 +34,10 @@ const float timer_4tiles = 3.0f;
 const float timer_many_tiles = 6.0f;
 bool time_is_up = false;
 
+float space_text_scale = 1.0f;
+float space_text_velocity = 1.0f;
+bool space_text_animating = false;
+
 Vector2 grid_origin;
 Texture2D background;
 Font score_font;
@@ -444,109 +448,139 @@ int main(void){
     while(!WindowShouldClose()){ //if user closes the window it breaks 
         UpdateMusicStream(background_music);
 
-        mouse = GetMousePosition();
-        if(tile_state == STATE_IDLE && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-            int x = (mouse.x - grid_origin.x)/TILE_SIZE;
-            int y = (mouse.y - grid_origin.y)/TILE_SIZE;
-            if((mouse.x - grid_origin.x)>=0 && x<BOARD_SIZE && (mouse.y - grid_origin.y)>=0 && y<BOARD_SIZE){  //consider mouse clicks only if they are inside the grid
-                Vector2 current_tile = (Vector2){x,y}; 
-                if(selected_tile.x<0 && selected_tile.y<0){ //if the tile that we clicked on is the first chosen
-                                                            //we just select it
-                    selected_tile = current_tile;
-                }
-                else{                                       //otherwise, we try to swap tiles, as we know that some tile was already chosen
-                    if(are_tiles_adjacent(selected_tile, current_tile)){
-                        swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
-                        if(tile_has_match_at(selected_tile.x, selected_tile.y) || tile_has_match_at(current_tile.x, current_tile.y)){
-                            detect_matches();
-                            tile_state = STATE_MATCH_DELAY;
-                            match_delay_timer = MATCH_DELAY_DURATION;
-                            
-                        }
-                        else{  //if no matches occured, swap back
-                            swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
-                        }
-                    }
-                    selected_tile = (Vector2){-1, -1};
-                }
-            }
-        }
-
-        float dt = GetFrameTime(); // getting the time from the previous frame update
-                                   // to properly render the acceleration
-
-        //changing the offset for each tile, that has it
-        if(tile_state == STATE_ANIMATING){
-            bool still_animating = false;
-            for(int y=0;y<BOARD_SIZE;y++){
-                for(int x=0;x<BOARD_SIZE;x++){
-                    if(fall_offset[y][x]>0){
-                        fall_vel[y][x] += GRAVITY*dt; //current velocity of the tile
-                        fall_offset[y][x] -= fall_vel[y][x]*dt; //current offset from the final position
-                        if(fall_offset[y][x]<0){  //if it is <0 ,tile is already at the final position => offset=0
-                            fall_offset[y][x] = 0;
-                        }
-                        else{
-                            still_animating = true;
-                        }
-                    }
-                }
-            }
-
-            //going into delay
-            if(!still_animating){
+        if(tile_state == STATE_GAME_OVER){
+            if(IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+                space_text_animating = false;
+                score = 0.0f;
+                timer = 10.0f;
+                time_is_up = false;
                 clear_matches();
-                detect_matches();
-                tile_state = STATE_MATCH_DELAY;
-                match_delay_timer = MATCH_DELAY_DURATION;
+                for(int i=0;i<MAX_SCORE_POPUPS;i++){
+                    score_popups[i].active = false;
+                }
+                init_board();
+
+                tile_state = STATE_IDLE;
+            }
+
+            if(space_text_animating){
+                space_text_scale += GetFrameTime()*space_text_velocity;
+                if(space_text_scale>=1.2f){
+                    space_text_scale = 1.2f;
+                    space_text_velocity = -0.5f;
+                }
+                if(space_text_scale<=1.0f){
+                    space_text_scale = 1.0f;
+                    space_text_velocity = 0.5;
+                }
             }
         }
 
-        //decreasing delay, so hadling its duration
-        if(tile_state == STATE_MATCH_DELAY){
-            match_delay_timer -= GetFrameTime();
-            if(match_delay_timer<=0.0f){
-                if(find_matches()){
-                    resolve_matches();
-                    if(total_matches_count >= 5){
-                        PlaySound(rampage);
+        else{
+            mouse = GetMousePosition();
+            if(tile_state == STATE_IDLE && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+                int x = (mouse.x - grid_origin.x)/TILE_SIZE;
+                int y = (mouse.y - grid_origin.y)/TILE_SIZE;
+                if((mouse.x - grid_origin.x)>=0 && x<BOARD_SIZE && (mouse.y - grid_origin.y)>=0 && y<BOARD_SIZE){  //consider mouse clicks only if they are inside the grid
+                    Vector2 current_tile = (Vector2){x,y}; 
+                    if(selected_tile.x<0 && selected_tile.y<0){ //if the tile that we clicked on is the first chosen
+                                                                //we just select it
+                        selected_tile = current_tile;
+                    }
+                    else{                                       //otherwise, we try to swap tiles, as we know that some tile was already chosen
+                        if(are_tiles_adjacent(selected_tile, current_tile)){
+                            swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
+                            if(tile_has_match_at(selected_tile.x, selected_tile.y) || tile_has_match_at(current_tile.x, current_tile.y)){
+                                detect_matches();
+                                tile_state = STATE_MATCH_DELAY;
+                                match_delay_timer = MATCH_DELAY_DURATION;
+                                
+                            }
+                            else{  //if no matches occured, swap back
+                                swap_tiles(selected_tile.x, selected_tile.y, current_tile.x, current_tile.y);
+                            }
+                        }
+                        selected_tile = (Vector2){-1, -1};
                     }
                 }
-                else{
-                    tile_state = STATE_IDLE;
-                    total_matches_count = 0;
+            }
+
+            float dt = GetFrameTime(); // getting the time from the previous frame update
+                                    // to properly render the acceleration
+
+            //changing the offset for each tile, that has it
+            if(tile_state == STATE_ANIMATING){
+                bool still_animating = false;
+                for(int y=0;y<BOARD_SIZE;y++){
+                    for(int x=0;x<BOARD_SIZE;x++){
+                        if(fall_offset[y][x]>0){
+                            fall_vel[y][x] += GRAVITY*dt; //current velocity of the tile
+                            fall_offset[y][x] -= fall_vel[y][x]*dt; //current offset from the final position
+                            if(fall_offset[y][x]<0){  //if it is <0 ,tile is already at the final position => offset=0
+                                fall_offset[y][x] = 0;
+                            }
+                            else{
+                                still_animating = true;
+                            }
+                        }
+                    }
+                }
+
+                //going into delay
+                if(!still_animating){
+                    clear_matches();
+                    detect_matches();
+                    tile_state = STATE_MATCH_DELAY;
+                    match_delay_timer = MATCH_DELAY_DURATION;
                 }
             }
-        }
 
-        //updating score popups
-        for(int i=0;i<MAX_SCORE_POPUPS;i++){
-            if(score_popups[i].active){
-                score_popups[i].lifetime -= GetFrameTime();
-                score_popups[i].position.y -= 30*GetFrameTime();
-                score_popups[i].alpha = score_popups[i].lifetime;
-
-                if(score_popups[i].lifetime <= 0.0f){
-                    score_popups[i].active = false; 
+            //decreasing delay, so hadling its duration
+            if(tile_state == STATE_MATCH_DELAY){
+                match_delay_timer -= GetFrameTime();
+                if(match_delay_timer<=0.0f){
+                    if(find_matches()){
+                        resolve_matches();
+                        if(total_matches_count >= 5){
+                            PlaySound(rampage);
+                        }
+                    }
+                    else{
+                        tile_state = STATE_IDLE;
+                        total_matches_count = 0;
+                    }
                 }
             }
-        }
 
-        //score animation 
-        if(score_animating){
-            score_scale += GetFrameTime()*score_scale_velocity;
-            if(score_scale<=1.0f){
-                score_scale = 1.0f;
-                score_animating = false;
+            //updating score popups
+            for(int i=0;i<MAX_SCORE_POPUPS;i++){
+                if(score_popups[i].active){
+                    score_popups[i].lifetime -= GetFrameTime();
+                    score_popups[i].position.y -= 30*GetFrameTime();
+                    score_popups[i].alpha = score_popups[i].lifetime;
+
+                    if(score_popups[i].lifetime <= 0.0f){
+                        score_popups[i].active = false; 
+                    }
+                }
             }
-        }
 
-        if(!time_is_up){
-            timer-=GetFrameTime();
-            if(timer<=0){
-                time_is_up = true;
-                timer = 0;
-                tile_state = STATE_GAME_OVER;
+            //score animation 
+            if(score_animating){
+                score_scale += GetFrameTime()*score_scale_velocity;
+                if(score_scale<=1.0f){
+                    score_scale = 1.0f;
+                    score_animating = false;
+                }
+            }
+
+            if(!time_is_up){
+                timer-=GetFrameTime();
+                if(timer<=0){
+                    time_is_up = true;
+                    timer = 0;
+                    tile_state = STATE_GAME_OVER;
+                }
             }
         }
 
@@ -640,6 +674,11 @@ int main(void){
         if(tile_state == STATE_GAME_OVER){
             int digits_in_score = 0;
             int temp_score = score;
+            if(!space_text_animating){
+                space_text_velocity = 1.0f;
+                space_text_scale = 1.0f;
+            }
+            space_text_animating = true;
             if(temp_score == 0){
                 digits_in_score = 1;
             }
@@ -647,9 +686,10 @@ int main(void){
                 temp_score/=10;
                 digits_in_score++;
             }
-            DrawRectangle(0, 0, screen_width, screen_height, Fade(DARKGRAY,0.7));
+            DrawRectangle(0, 0, screen_width, screen_height, Fade(BLACK,0.7));
             DrawTextEx(score_font, TextFormat("GAME OVER"), (Vector2){screen_width/2 - 149, screen_height/2 - 100}, 55, 1, RED);
             DrawText(TextFormat("Final score: %d", score), screen_width/2 - 100 - 8*digits_in_score, screen_height/2, 32, WHITE);
+            DrawTextEx(score_font,TextFormat("Press [SPACE] or click to play again"),(Vector2){screen_width/2 - 230*space_text_scale, screen_height/2 + 100}, 24*space_text_scale, 1, WHITE);
         }
 
         EndDrawing();
